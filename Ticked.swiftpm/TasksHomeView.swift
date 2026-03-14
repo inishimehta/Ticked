@@ -1,15 +1,11 @@
 import SwiftUI
+import Foundation
 
 struct TasksHomeView: View {
-    @State private var tasks: [TaskItem] = MockData.tasks
+    @State private var tasks: [TaskItem] = TaskStore.loadTasks()
     @State private var selectedStatus: TaskStatus? = nil
     @State private var showFilter = false
-    @State private var showAddTask = false   // ✅ added
-
-    var filteredTasks: [TaskItem] {
-        guard let selectedStatus else { return tasks }
-        return tasks.filter { $0.status == selectedStatus }
-    }
+    @State private var showAddTask = false
 
     var body: some View {
         VStack(spacing: 12) {
@@ -17,7 +13,7 @@ struct TasksHomeView: View {
 
             HStack(spacing: 10) {
                 Button {
-                    showAddTask = true   // ✅ changed
+                    showAddTask = true
                 } label: {
                     Label("Add Task", systemImage: "plus")
                         .frame(maxWidth: .infinity)
@@ -43,33 +39,39 @@ struct TasksHomeView: View {
 
             ScrollView {
                 LazyVStack(spacing: 12) {
-                    ForEach(filteredTasks) { task in
-                        NavigationLink {
-                            EditTaskView(task: task)
-                        } label: {
-                            TaskCardView(task: task)
+                    ForEach(tasks.indices, id: \.self) { index in
+                        if shouldShow(task: tasks[index]) {
+                            NavigationLink {
+                                EditTaskView(task: $tasks[index])
+                            } label: {
+                                TaskCardView(task: tasks[index])
+                            }
+                            .buttonStyle(.plain)
                         }
-                        .buttonStyle(.plain)
                     }
                 }
                 .padding()
             }
         }
         .navigationBarBackButtonHidden(true)
-
-        // existing filter sheet
         .sheet(isPresented: $showFilter) {
             FilterSheetView(selectedStatus: $selectedStatus)
                 .presentationDetents([.medium])
         }
-
-        // ✅ added add-task sheet
         .sheet(isPresented: $showAddTask) {
             AddTaskView { newTask in
                 tasks.insert(newTask, at: 0)
             }
             .presentationDetents([.large])
         }
+        .onChange(of: tasks) { newValue in
+            TaskStore.saveTasks(newValue)
+        }
+    }
+
+    private func shouldShow(task: TaskItem) -> Bool {
+        guard let selectedStatus else { return true }
+        return task.status == selectedStatus
     }
 
     private var header: some View {
