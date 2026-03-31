@@ -4,7 +4,6 @@ import Foundation
 struct TasksHomeView: View {
     @State private var tasks: [TaskItem] = TaskStore.loadTasks()
     @State private var selectedStatus: TaskStatus? = nil
-    @State private var showFilter = false
     @State private var showAddTask = false
 
     var body: some View {
@@ -20,10 +19,13 @@ struct TasksHomeView: View {
                 }
                 .buttonStyle(.borderedProminent)
 
-                Button {
-                    showFilter = true
+                Menu {
+                    Button("All") { selectedStatus = nil }
+                    ForEach(TaskStatus.allCases) { status in
+                        Button(status.rawValue) { selectedStatus = status }
+                    }
                 } label: {
-                    Label("Filter", systemImage: "line.3.horizontal.decrease.circle")
+                    Label(selectedStatus?.rawValue ?? "Filter", systemImage: "line.3.horizontal.decrease.circle")
                 }
                 .buttonStyle(.bordered)
 
@@ -38,26 +40,50 @@ struct TasksHomeView: View {
             .padding(.horizontal)
 
             ScrollView {
-                LazyVStack(spacing: 12) {
-                    ForEach(tasks.indices, id: \.self) { index in
-                        if shouldShow(task: tasks[index]) {
-                            NavigationLink {
-                                EditTaskView(task: $tasks[index])
-                            } label: {
-                                TaskCardView(task: tasks[index])
+                LazyVStack(spacing: 16, pinnedViews: []) {
+                    
+                    let overdueIndices = tasks.indices.filter { isOverdue(task: tasks[$0]) && shouldShow(task: tasks[$0]) }
+                    if !overdueIndices.isEmpty {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Overdue")
+                                .font(.headline)
+                                .foregroundColor(.red)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.horizontal, 4)
+
+                            ForEach(overdueIndices, id: \.self) { index in
+                                taskRow(for: index)
                             }
-                            .buttonStyle(.plain)
                         }
+                    }
+
+                    let regularIndices = tasks.indices.filter { !isOverdue(task: tasks[$0]) && shouldShow(task: tasks[$0]) }
+                    if !regularIndices.isEmpty {
+                        VStack(alignment: .leading, spacing: 12) {
+                            if !overdueIndices.isEmpty {
+                                Text("Upcoming / Other")
+                                    .font(.headline)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .padding(.horizontal, 4)
+                                    .padding(.top, 8)
+                            }
+
+                            ForEach(regularIndices, id: \.self) { index in
+                                taskRow(for: index)
+                            }
+                        }
+                    }
+
+                    if overdueIndices.isEmpty && regularIndices.isEmpty {
+                        Text("No tasks found.")
+                            .foregroundColor(.secondary)
+                            .padding(.top, 40)
                     }
                 }
                 .padding()
             }
         }
         .navigationBarBackButtonHidden(true)
-        .sheet(isPresented: $showFilter) {
-            FilterSheetView(selectedStatus: $selectedStatus)
-                .presentationDetents([.medium])
-        }
         .sheet(isPresented: $showAddTask) {
             AddTaskView { newTask in
                 tasks.insert(newTask, at: 0)
@@ -69,9 +95,32 @@ struct TasksHomeView: View {
         }
     }
 
+    // Helper: Checks if due date is passed AND task is not completed
+    private func isOverdue(task: TaskItem) -> Bool {
+        return task.dueDate < Date() && task.status != .completed
+    }
+
+    // Helper: Checks filter status
     private func shouldShow(task: TaskItem) -> Bool {
         guard let selectedStatus else { return true }
         return task.status == selectedStatus
+    }
+
+    // Helper: Builds a single task row with navigation and deletion
+    @ViewBuilder
+    private func taskRow(for index: Int) -> some View {
+        // Safety check to prevent index crashes when deleting
+        if index < tasks.count {
+            NavigationLink {
+                EditTaskView(task: $tasks[index])
+            } label: {
+                TaskCardView(task: tasks[index]) {
+                    let idToDelete = tasks[index].id
+                    tasks.removeAll { $0.id == idToDelete }
+                }
+            }
+            .buttonStyle(.plain)
+        }
     }
 
     private var header: some View {
