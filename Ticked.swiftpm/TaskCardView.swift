@@ -2,6 +2,7 @@ import SwiftUI
 
 struct TaskCardView: View {
     let task: TaskItem
+    var onDelete: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -22,25 +23,41 @@ struct TaskCardView: View {
             HStack(spacing: 10) {
                 Label(dateString(task.dueDate), systemImage: "calendar")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    // Make text red if overdue
+                    .foregroundStyle(isOverdue ? .red : .secondary)
 
                 Label(timeString(task.dueDate), systemImage: "clock")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(isOverdue ? .red : .secondary)
 
                 Spacer()
 
                 Chip(text: task.type.name, tint: .blue.opacity(0.15), textColor: .blue)
                 Chip(text: task.status.rawValue, tint: .green.opacity(0.15), textColor: .green)
+                
+                Image(systemName: "trash")
+                    .font(.caption)
+                    .foregroundColor(.red)
+                    .padding(8)
+                    .background(Color.red.opacity(0.1), in: Circle())
+                    // onTapGesture ensures it triggers deletion without activating the NavigationLink
+                    .onTapGesture {
+                        onDelete()
+                    }
             }
         }
         .padding(14)
         .background(.white, in: RoundedRectangle(cornerRadius: 16))
         .overlay(
             RoundedRectangle(cornerRadius: 16)
-                .stroke(.gray.opacity(0.12), lineWidth: 1)
+                // Red border if overdue
+                .stroke(isOverdue ? Color.red.opacity(0.6) : .gray.opacity(0.12), lineWidth: 1)
         )
         .shadow(color: .black.opacity(0.04), radius: 10, x: 0, y: 4)
+    }
+
+    private var isOverdue: Bool {
+        task.dueDate < Date() && task.status != .completed
     }
 
     private func dateString(_ date: Date) -> String {
@@ -71,9 +88,9 @@ struct Chip: View {
 
     var body: some View {
         Text(text)
-            .font(.caption.weight(.semibold))
+            .font(.caption2.weight(.bold))
             .foregroundStyle(textColor)
-            .padding(.horizontal, 10)
+            .padding(.horizontal, 8)
             .padding(.vertical, 6)
             .background(tint, in: Capsule())
     }
